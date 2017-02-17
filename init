@@ -1,0 +1,11 @@
+#!/bin/sh
+
+mkdir -p /storage/folders
+mkdir -p /storage/config
+CONFIG_PATH=/storage/config/rslagent.json
+
+if ! [ -f $CONFIG_PATH ]; then
+    cp /etc/default/rslagent.json $CONFIG_PATH;
+fi
+
+exec /usr/local/bin/rslagent --config $CONFIG_PATH  --nodaemon $*

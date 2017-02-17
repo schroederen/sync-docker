@@ -1,0 +1,9 @@
+{
+    "storage_path": "/storage/config/",
+    "folders_storage_path": "/storage/folders",
+    "management_server": {
+        "host": "<host:port>",
+        "cert_authority_fingerprint": "<certificate fingerprint>",
+        "bootstrap_token": "<bootstrap token>"
+    }
+}
