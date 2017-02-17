@@ -1,0 +1,35 @@
+#!/bin/sh
+
+ACTION=$1
+COUNT=$2
+
+case $ACTION in
+    'spawn')
+        docker build --tag resilio/agent $(dirname $0)
+    ;;
+esac
+
+for i in $(seq 1 $COUNT); do
+    # iface=docker-isolated$i
+    container=rslagent$i
+
+    case $ACTION in
+        'spawn')
+            # docker network create --driver bridge $iface
+            docker run --name $container -d --restart on-failure --network $iface resilio/agent; 
+        ;;
+        "destroy")
+            docker rm -f $container; 
+            # docker network rm $iface
+        ;;
+        "attach")
+            docker exec -ti rslagent$COUNT /bin/sh
+            exit 0
+        ;;
+        *)
+            echo "Invalid action"
+            exit 1
+        ;;
+    esac
+done;
+

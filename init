@@ -8,4 +8,4 @@ if ! [ -f $CONFIG_PATH ]; then
     cp /etc/default/rslagent.json $CONFIG_PATH;
 fi
 
-exec /usr/local/bin/rslagent --config $CONFIG_PATH  --nodaemon $*
+exec /usr/local/bin/rslagent --config $CONFIG_PATH  --log /storage/config/sync.log --nodaemon $*
