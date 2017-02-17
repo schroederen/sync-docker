@@ -18,14 +18,11 @@ Sync uses peer-to-peer technology to provide fast, private file sharing for team
       resilio/agent
 ```
 
-Spawn swarm
+Swarm control
 ```
-for i in {1..100}; do docker run --name rslagent$i -d --restart on-failure resilio/agent; done;
-```
-
-Stop swarm
-```
-for i in {1..100}; do docker rm -f rslagent$i  &; done;
+./swarmctrl spawn 100   # create 100 containers
+./swarmctrl attach 1    # attach to first container
+./swarmctrl destroy 100 # destroy all 100 containers
 ```
 
 # Volume
