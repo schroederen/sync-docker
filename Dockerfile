@@ -6,7 +6,8 @@
 FROM alpine
 MAINTAINER Resilio Inc. <support@resilio.com>
 
-RUN apk update && apk add libc6-compat && ln -snf /lib /lib64
+RUN apk update && apk add libc6-compat bash && ln -snf /lib /lib64
+RUN echo "export PS1=\"\$(hostname)# \"" > /root/.bashrc
 
 ADD http://engineering-0.local/releases/desktop/SIT-latest/resilio-connect-agent_x64.tar.gz /tmp/agent.tgz
 RUN tar -xf /tmp/agent.tgz -C /usr/local/bin rslagent && rm -f /tmp/agent.tgz

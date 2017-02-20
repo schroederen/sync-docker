@@ -2,45 +2,91 @@
 
 ACTION=$1
 COUNT=$2
-
-
-function execute_in_container() {
-    IDX=$1
-    CMD=$2
-    docker exec -ti rslagent$IDX "$CMD"
-}
+host_br="br-nat"
 
 case $ACTION in
     'spawn')
         docker build --tag resilio/agent $(dirname $0)
+
+        brctl addbr $host_br || exit 2
+        ip link set up $host_br || exit 2
+        ip addr add 10.0.0.254/16 dev $host_br || exit 2
+
+        for i in $(seq 1 $COUNT); do
+            nat_ns_name="nat$i"  
+            nat_host_if="nat$i"
+            
+            nat_wan_if="nat${i}_wan0"
+            nat_lan_if="nat${i}_lan0"
+
+            container_lan_if="veth$i"
+            
+            container=rslagent$i
+            
+            docker run --name $container -d --restart on-failure --network none resilio/agent || exit 2 
+            pid=$(docker inspect -f '{{.State.Pid}}' $container)
+            # this hack allow works with docker namespaces using the `ip netns` utility
+            ln -s /proc/$pid/ns/net /var/run/netns/$pid
+
+            # create a NAT network namespace        
+            ip netns add $nat_ns_name
+            
+            #create virtual ethernet pair for NAT<->host communication
+            ip link add $nat_host_if type veth peer name $nat_wan_if || exit 3
+            ip link set up $nat_host_if
+            brctl addif $host_br $nat_host_if || exit 3        
+
+            # configure NAT wan interface
+            ip link set $nat_wan_if netns $nat_ns_name || exit 3
+            ip netns exec $nat_ns_name ip link set up $nat_wan_if
+            ip netns exec $nat_ns_name ip addr add 10.0.0.$i/16 dev $nat_wan_if  # todo: addres incremnetation
+            ip netns exec $nat_ns_name ip route add default via 10.0.0.254
+            ip netns exec $nat_ns_name iptables -t nat -A POSTROUTING -o $nat_wan_if -j MASQUERADE
+
+            # create virtual ethernet pair for NAT<->docker container communication
+            ip link add $container_lan_if type veth peer name $nat_lan_if || exit 3           
+
+            # configure NAT local interface
+            ip link set $nat_lan_if netns $nat_ns_name || exit 3
+            ip netns exec $nat_ns_name ip addr add 10.$i.0.1/24 dev $nat_lan_if || exit 3
+            ip netns exec $nat_ns_name ip link set up $nat_lan_if
+            
+            # configure container local interface
+            ip link set $container_lan_if netns $pid || exit 3
+            ip netns exec $pid ip addr add 10.$i.0.2/24 dev $container_lan_if || exit 3
+            ip netns exec $pid ip link set up $container_lan_if
+            ip netns exec $pid ip route add default via 10.$i.0.1
+        done
+    ;;
+    "destroy")
+        net_pattern=nat
+
+        for id in $(docker ps | grep -i -v container | grep "rslagent" | awk '{print $1}' | xargs); do
+            pid=$(docker inspect -f '{{.State.Pid}}' $container)
+            ip netns delete $pid
+            docker rm -f $id
+        done
+
+        # remove all namespaces
+        ip netns ls | grep "$net_pattern" | xargs -n 1 ip netns delete
+
+        # remove bridge and other nat* network interfaces
+        ls /sys/class/net | grep "$net_pattern" | xargs -n 1 ip link delete dev
+    ;;
+    "attach")
+        docker exec -ti rslagent$2 bash
+    ;;
+    "attach-nat")
+        export ns=nat$2
+        echo "export PS1=\"$ns> \"" > .bashrc
+        ip netns exec $ns bash --rcfile .bashrc
+    ;;
+
+
+    *)
+        echo "Invalid action"
+        exit 1
     ;;
 esac
 
-for i in $(seq 1 $COUNT); do
-    iface=docker-isolated$i
-    container=rslagent$i
-
-    case $ACTION in
-        'spawn')
-            docker network create --driver bridge $iface
-            docker run --name $container -d --restart on-failure --network $iface resilio/agent; 
-        ;;
-        "destroy")
-            docker rm -f $container; 
-            docker network rm $iface
-        ;;
-        "attach")
-            execute_in_container $COUNT /bin/sh
-            exit 0
-        ;;
-        "nsenter")
-            pid=$(docker inspect --format '{{.State.Pid}}' $container)
-            nsenter -t $pid -n /bin/bash
-        ;;
-        *)
-            echo "Invalid action"
-            exit 1
-        ;;
-    esac
-done;
 
