@@ -3,6 +3,13 @@
 ACTION=$1
 COUNT=$2
 
+
+function execute_in_container() {
+    IDX=$1
+    CMD=$2
+    docker exec -ti rslagent$IDX "$CMD"
+}
+
 case $ACTION in
     'spawn')
         docker build --tag resilio/agent $(dirname $0)
@@ -10,21 +17,25 @@ case $ACTION in
 esac
 
 for i in $(seq 1 $COUNT); do
-    # iface=docker-isolated$i
+    iface=docker-isolated$i
     container=rslagent$i
 
     case $ACTION in
         'spawn')
-            # docker network create --driver bridge $iface
+            docker network create --driver bridge $iface
             docker run --name $container -d --restart on-failure --network $iface resilio/agent; 
         ;;
         "destroy")
             docker rm -f $container; 
-            # docker network rm $iface
+            docker network rm $iface
         ;;
         "attach")
-            docker exec -ti rslagent$COUNT /bin/sh
+            execute_in_container $COUNT /bin/sh
             exit 0
+        ;;
+        "nsenter")
+            pid=$(docker inspect --format '{{.State.Pid}}' $container)
+            nsenter -t $pid -n /bin/bash
         ;;
         *)
             echo "Invalid action"
