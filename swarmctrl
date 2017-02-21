@@ -10,7 +10,7 @@ case $ACTION in
 
         brctl addbr $host_br || exit 2
         ip link set up $host_br || exit 2
-        ip addr add 10.0.0.254/16 dev $host_br || exit 2
+        ip addr add 10.32.255.254/16 dev $host_br || exit 2
 
         for i in $(seq 1 $COUNT); do
             nat_ns_name="nat$i"  
@@ -39,8 +39,8 @@ case $ACTION in
             # configure NAT wan interface
             ip link set $nat_wan_if netns $nat_ns_name || exit 3
             ip netns exec $nat_ns_name ip link set up $nat_wan_if
-            ip netns exec $nat_ns_name ip addr add 10.0.0.$i/16 dev $nat_wan_if  # todo: addres incremnetation
-            ip netns exec $nat_ns_name ip route add default via 10.0.0.254
+            ip netns exec $nat_ns_name ip addr add 10.32.0.$i/16 dev $nat_wan_if  # todo: addres incremnetation
+            ip netns exec $nat_ns_name ip route add default via 10.32.255.254
             ip netns exec $nat_ns_name iptables -t nat -A POSTROUTING -o $nat_wan_if -j MASQUERADE
 
             # create virtual ethernet pair for NAT<->docker container communication
@@ -48,14 +48,14 @@ case $ACTION in
 
             # configure NAT local interface
             ip link set $nat_lan_if netns $nat_ns_name || exit 3
-            ip netns exec $nat_ns_name ip addr add 10.$i.0.1/24 dev $nat_lan_if || exit 3
+            ip netns exec $nat_ns_name ip addr add 10.64.$i.254/24 dev $nat_lan_if || exit 3
             ip netns exec $nat_ns_name ip link set up $nat_lan_if
             
             # configure container local interface
             ip link set $container_lan_if netns $pid || exit 3
-            ip netns exec $pid ip addr add 10.$i.0.2/24 dev $container_lan_if || exit 3
+            ip netns exec $pid ip addr add 10.64.$i.$i/24 dev $container_lan_if || exit 3
             ip netns exec $pid ip link set up $container_lan_if
-            ip netns exec $pid ip route add default via 10.$i.0.1
+            ip netns exec $pid ip route add default via 10.64.$i.1
         done
     ;;
     "destroy")
@@ -68,7 +68,7 @@ case $ACTION in
         done
 
         # remove all namespaces
-        ip netns ls | grep "$net_pattern" | xargs -n 1 ip netns delete
+        ip netns ls | grep "$net_pattern\|$[0-9]+" | xargs -n 1 ip netns delete
 
         # remove bridge and other nat* network interfaces
         ls /sys/class/net | grep "$net_pattern" | xargs -n 1 ip link delete dev
