@@ -7,8 +7,8 @@ FROM ubuntu
 MAINTAINER Resilio Inc. <support@resilio.com>
 LABEL com.resilio.version="2.6.3"
 
-ADD https://download-cdn.resilio.com/2.6.3/linux-x64/resilio-sync_x64.tar.gz /tmp/sync.tgz
-RUN tar -xf /tmp/sync.tgz -C /usr/bin rslsync && rm -f /tmp/sync.tgz
+ADD https://download-cdn.resilio.com/2.6.3/Debian/resilio-sync_2.6.3-1_arm64.deb /tmp/sync.deb
+RUN dpkg -i /tmp/sync.deb && rm /tmp/sync.deb
 
 COPY sync.conf.default /etc/
 COPY run_sync /usr/bin/
